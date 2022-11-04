@@ -8,10 +8,9 @@ import (
 	"strconv"
 	"time"
 
-  "github.com/hashicorp/terraform-plugin-log/tflog"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
-
 )
 
 func dataSourceNVRAM() *schema.Resource {
@@ -39,12 +38,12 @@ func nvramRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.
 
 	pad := make([]byte, 1)
 	pad[0] = 0x00
-  
-  tflog.Info(ctx,"NVRAM 8 byte Header: " + hex.EncodeToString(b[0:8]))
+
+	tflog.Info(ctx, "NVRAM 8 byte Header: "+hex.EncodeToString(b[0:8]))
 
 	length := int(binary.BigEndian.Uint32(append(pad, b[4:7]...)))
 	magic := b[7]
-  tflog.Info(ctx, "NVRAM dump length: " + strconv.Itoa(length))
+	tflog.Info(ctx, "NVRAM dump length: "+strconv.Itoa(length))
 
 	for i := 8; i < length; i++ {
 		if b[i] > (0xfd - 0x1) {
@@ -59,7 +58,7 @@ func nvramRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.
 	se := 8
 	for se < length+8 {
 		nb := bytes.IndexByte(b[se:length+8], 0x00)
-		cfg := string(b[se : se+nb+1])
+		cfg := string(b[se : se+nb])
 		se = se + nb + 1
 		eq := bytes.Index([]byte(cfg), []byte("="))
 		if eq == -1 {

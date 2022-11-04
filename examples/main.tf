@@ -14,9 +14,20 @@ provider "tomato" {
 
 data "tomato_nvram" "nvram" {}
 
-# Returns all coffees
 output "dnsmasq_config" {
   value = data.tomato_nvram.nvram.nvram.dnsmasq_custom
 }
 
+output "rebind" {
+  value = data.tomato_nvram.nvram.nvram.dns_norebind
+}
+
+resource "tomato_nvram" "dnsmasq" {
+  items {
+    service = "dnsmasq-restart"
+    nvram = {
+      dns_norebind = 0
+    }
+  }
+}
 

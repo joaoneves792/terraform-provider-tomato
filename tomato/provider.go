@@ -54,7 +54,9 @@ func Provider() *schema.Provider {
 				DefaultFunc: schema.EnvDefaultFunc("TOMATO_URL", nil),
 			},
 		},
-		ResourcesMap: map[string]*schema.Resource{},
+		ResourcesMap: map[string]*schema.Resource{
+			"tomato_nvram": resourceNVRAM(),
+		},
 		DataSourcesMap: map[string]*schema.Resource{
 			"tomato_nvram": dataSourceNVRAM(),
 		},
