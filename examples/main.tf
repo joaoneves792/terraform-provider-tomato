@@ -22,8 +22,12 @@ output "rebind" {
   value = data.tomato_nvram.nvram.nvram.dns_norebind
 }
 
-/*resource "tomato_dns_entry" "dnsmasq" {
+resource "tomato_dns_entry" "dnsmasq" {
   name = "batatas"
   record = "1.1.1.1"
-}*/
+}
+resource "tomato_dns_entry" "cebola" {
+  name = "cebola"
+  record = "8.8.8.8"
+}
 

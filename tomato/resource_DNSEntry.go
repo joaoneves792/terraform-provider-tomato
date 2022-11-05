@@ -2,11 +2,9 @@ package tomato
 
 import (
 	"context"
-	"encoding/base64"
 	"fmt"
 	"net/url"
 	"regexp"
-	"strings"
 
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
@@ -29,6 +27,9 @@ func resourceDNSEntry() *schema.Resource {
 				Required: true,
 			},
 		},
+    Importer: &schema.ResourceImporter{
+       StateContext: schema.ImportStatePassthroughContext,
+    },
 	}
 }
 
@@ -47,9 +48,7 @@ func resourceDNSEntryCreate(ctx context.Context, d *schema.ResourceData, m inter
 	name := d.Get("name").(string)
 	record := d.Get("record").(string)
 
-	sEnc := base64.StdEncoding.EncodeToString([]byte(name + "/" + record))
-
-	d.SetId(sEnc)
+	d.SetId(name)
 
 	entry := fmt.Sprintf("address=/%s/%s", name, record)
 
@@ -78,15 +77,7 @@ func resourceDNSEntryRead(ctx context.Context, d *schema.ResourceData, m interfa
 
 	recordID := d.Id()
 
-	tflog.Info(ctx, "Read ID: "+recordID)
-
-	sDec, err := base64.StdEncoding.DecodeString(recordID)
-	if err != nil {
-		return diag.FromErr(err)
-	}
-
-	sp := strings.Split(string(sDec), "/")
-	name := sp[0]
+	name := recordID
 
 	n, err := c.getNVRAM()
 	if err != nil {
@@ -95,35 +86,67 @@ func resourceDNSEntryRead(ctx context.Context, d *schema.ResourceData, m interfa
 
 	dnsmasq_custom := n["dnsmasq_custom"]
 
-	re := regexp.MustCompile(`(?m)address=/([a-zA-Z-\.]+)/([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)$`)
-
-	matches := re.FindAllStringSubmatch(dnsmasq_custom, -1)
-	for i := range matches {
-		tflog.Info(ctx, "Found: "+matches[i][0])
-		if matches[i][1] == name {
-			if err := d.Set("name", name); err != nil {
-				return diag.FromErr(err)
-			}
-			if err := d.Set("record", matches[i][2]); err != nil {
-				return diag.FromErr(err)
-			}
-			return diags
-		}
-	}
-
-	if err := d.Set("name", ""); err != nil {
+	entry, name, record := findEntry(name, dnsmasq_custom)
+	if err := d.Set("name", name); err != nil {
 		return diag.FromErr(err)
 	}
-	if err := d.Set("record", ""); err != nil {
+	if err := d.Set("record", record); err != nil {
 		return diag.FromErr(err)
 	}
 
-	d.SetId("")
-
+	if len(entry) == 0 {
+		d.SetId("")
+	}
 	return diags
 }
 
+func findEntry(name, dnsmasq_config string) (string, string, string) {
+	re := regexp.MustCompile(`(?m)address=/([a-zA-Z-\.]+)/([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)$`)
+
+	matches := re.FindAllStringSubmatch(dnsmasq_config, -1)
+	for i := range matches {
+		if matches[i][1] == name {
+			return matches[i][0], matches[i][1], matches[i][2]
+		}
+	}
+	return "", "", ""
+}
+
 func resourceDNSEntryUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
+
+	c := m.(*Client)
+
+	oname := d.Get("name").(string)
+	orecord := d.Get("record").(string)
+
+	n, err := c.getNVRAM()
+	if err != nil {
+		return diag.FromErr(err)
+	}
+
+	dnsmasq_custom := n["dnsmasq_custom"]
+
+	_, ename, erecord := findEntry(oname, dnsmasq_custom)
+
+	//Nothing has changed
+	if oname == ename && orecord == erecord {
+		return resourceDNSEntryRead(ctx, d, m)
+	}
+	/*
+		entry := fmt.Sprintf("address=/%s/%s", name, record)
+
+		dnsconfig := url.QueryEscape(fmt.Sprintf("%s\n%s", dnsmasq_custom, entry))
+
+		tflog.Debug(ctx, "Apply dnsconfig:\n"+dnsconfig)
+
+		b, err := c.applyChange("dnsmasq-restart", "dnsmasq_custom="+dnsconfig)
+
+		tflog.Debug(ctx, b)
+
+		if err != nil {
+			return diag.FromErr(err)
+		}
+	*/
 	return resourceDNSEntryRead(ctx, d, m)
 }
 
