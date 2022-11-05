@@ -1,11 +1,14 @@
 package tomato
 
 import (
+	"bytes"
 	"crypto/tls"
+	"encoding/binary"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"time"
+	//  "github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
 // Client -
@@ -77,9 +80,29 @@ func (c *Client) doRequest(req *http.Request) ([]byte, error) {
 
 	return body, err
 }
+func (c *Client) applyChange(service, nvram_entries string) (string, error) {
+	if c.Auth.Username == "" || c.Auth.Password == "" {
+		return "", fmt.Errorf("define username and password")
+	}
+
+	rb := fmt.Sprintf("_ajax=1&_service=%s&%s&_http_id=TID944e75807cf4c9c3", service, nvram_entries)
+
+	req, err := http.NewRequest("POST", fmt.Sprintf("%s/tomato.cgi?", c.HostURL), bytes.NewBuffer([]byte(rb)))
+	if err != nil {
+		return "", err
+	}
+
+	b, err := c.doRequest(req)
+	if err != nil {
+		return string(b), err
+	}
+
+	return string(b), nil
+
+}
 
 // retrieve NVRAM
-func (c *Client) getNVRAM() ([]byte, error) {
+func (c *Client) getNVRAM() (map[string]string, error) {
 	if c.Auth.Username == "" || c.Auth.Password == "" {
 		return nil, fmt.Errorf("define username and password")
 	}
@@ -89,11 +112,42 @@ func (c *Client) getNVRAM() ([]byte, error) {
 		return nil, err
 	}
 
-	body, err := c.doRequest(req)
+	b, err := c.doRequest(req)
 	if err != nil {
 		return nil, err
 	}
 
-	return body, nil
+	pad := make([]byte, 1)
+	pad[0] = 0x00
+
+	//	tflog.Info(ctx, "NVRAM 8 byte Header: "+hex.EncodeToString(b[0:8]))
+
+	length := int(binary.BigEndian.Uint32(append(pad, b[4:7]...)))
+	magic := b[7]
+	//	tflog.Info(ctx, "NVRAM dump length: "+strconv.Itoa(length))
+
+	for i := 8; i < length; i++ {
+		if b[i] > (0xfd - 0x1) {
+			b[i] = 0x0
+		} else {
+			b[i] = 0xff + magic - b[i]
+		}
+	}
+
+	n := make(map[string]string)
+
+	se := 8
+	for se < length+8 {
+		nb := bytes.IndexByte(b[se:length+8], 0x00)
+		cfg := string(b[se : se+nb])
+		se = se + nb + 1
+		eq := bytes.Index([]byte(cfg), []byte("="))
+		if eq == -1 {
+			break
+		}
+		n[string(cfg[0:eq])] = string(cfg[eq+1:])
+	}
+
+	return n, nil
 
 }
