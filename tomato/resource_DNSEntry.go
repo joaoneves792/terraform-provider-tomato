@@ -5,11 +5,15 @@ import (
 	"fmt"
 	"net/url"
 	"regexp"
+	"strings"
+	"sync"
 
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
+
+var lock = &sync.Mutex{}
 
 func resourceDNSEntry() *schema.Resource {
 	return &schema.Resource{
@@ -27,9 +31,9 @@ func resourceDNSEntry() *schema.Resource {
 				Required: true,
 			},
 		},
-    Importer: &schema.ResourceImporter{
-       StateContext: schema.ImportStatePassthroughContext,
-    },
+		Importer: &schema.ResourceImporter{
+			StateContext: schema.ImportStatePassthroughContext,
+		},
 	}
 }
 
@@ -37,6 +41,9 @@ func resourceDNSEntryCreate(ctx context.Context, d *schema.ResourceData, m inter
 	c := m.(*Client)
 	// Warning or errors can be collected in a slice type
 	var diags diag.Diagnostics
+
+	lock.Lock()
+	defer lock.Unlock()
 
 	n, err := c.getNVRAM()
 	if err != nil {
@@ -116,6 +123,9 @@ func resourceDNSEntryUpdate(ctx context.Context, d *schema.ResourceData, m inter
 
 	c := m.(*Client)
 
+	lock.Lock()
+	defer lock.Unlock()
+
 	oname := d.Get("name").(string)
 	orecord := d.Get("record").(string)
 
@@ -126,33 +136,68 @@ func resourceDNSEntryUpdate(ctx context.Context, d *schema.ResourceData, m inter
 
 	dnsmasq_custom := n["dnsmasq_custom"]
 
-	_, ename, erecord := findEntry(oname, dnsmasq_custom)
+	eentry, ename, erecord := findEntry(oname, dnsmasq_custom)
 
 	//Nothing has changed
 	if oname == ename && orecord == erecord {
 		return resourceDNSEntryRead(ctx, d, m)
 	}
-	/*
-		entry := fmt.Sprintf("address=/%s/%s", name, record)
 
-		dnsconfig := url.QueryEscape(fmt.Sprintf("%s\n%s", dnsmasq_custom, entry))
+	entry := fmt.Sprintf("address=/%s/%s", oname, orecord)
 
-		tflog.Debug(ctx, "Apply dnsconfig:\n"+dnsconfig)
+	dnsmasq_custom = strings.Replace(dnsmasq_custom, eentry, entry, -1)
 
-		b, err := c.applyChange("dnsmasq-restart", "dnsmasq_custom="+dnsconfig)
+	dnsconfig := url.QueryEscape(dnsmasq_custom)
 
-		tflog.Debug(ctx, b)
+	tflog.Debug(ctx, "Apply dnsconfig:\n"+dnsconfig)
 
-		if err != nil {
-			return diag.FromErr(err)
-		}
-	*/
+	b, err := c.applyChange("dnsmasq-restart", "dnsmasq_custom="+dnsconfig)
+
+	tflog.Debug(ctx, b)
+
+	if err != nil {
+		return diag.FromErr(err)
+	}
+
 	return resourceDNSEntryRead(ctx, d, m)
 }
 
 func resourceDNSEntryDelete(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	// Warning or errors can be collected in a slice type
 	var diags diag.Diagnostics
+
+	id := d.Id()
+	c := m.(*Client)
+
+	lock.Lock()
+	defer lock.Unlock()
+
+	n, err := c.getNVRAM()
+	if err != nil {
+		return diag.FromErr(err)
+	}
+
+	dnsmasq_custom := n["dnsmasq_custom"]
+
+	entry, _, _ := findEntry(id, dnsmasq_custom)
+
+	if len(entry) == 0 {
+		return diags
+	}
+
+	dnsmasq_custom = strings.Replace(dnsmasq_custom, entry, "", -1)
+
+	dnsconfig := url.QueryEscape(dnsmasq_custom)
+
+	tflog.Debug(ctx, "Apply dnsconfig:\n"+dnsconfig)
+
+	b, err := c.applyChange("dnsmasq-restart", "dnsmasq_custom="+dnsconfig)
+
+	tflog.Debug(ctx, b)
+
+	if err != nil {
+		return diag.FromErr(err)
+	}
 
 	return diags
 }

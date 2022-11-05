@@ -14,20 +14,20 @@ provider "tomato" {
 
 data "tomato_nvram" "nvram" {}
 
-output "dnsmasq_config" {
-  value = data.tomato_nvram.nvram.nvram.dnsmasq_custom
-}
+#output "dnsmasq_config" {
+#  value = data.tomato_nvram.nvram.nvram.dnsmasq_custom
+#}
 
 output "rebind" {
   value = data.tomato_nvram.nvram.nvram.dns_norebind
 }
 
-resource "tomato_dns_entry" "dnsmasq" {
+resource "tomato_dns_entry" "batatas" {
   name = "batatas"
-  record = "1.1.1.1"
+  record = "127.0.0.2"
 }
 resource "tomato_dns_entry" "cebola" {
   name = "cebola"
-  record = "8.8.8.8"
+  record = "8.8.6.4"
 }
 

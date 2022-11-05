@@ -39,7 +39,7 @@ func NewClient(host, username, password *string) (*Client, error) {
 	}
 
 	c := Client{
-		HTTPClient: &http.Client{Timeout: 10 * time.Second, Transport: tr},
+		HTTPClient: &http.Client{Timeout: 60 * time.Second, Transport: tr},
 	}
 
 	if host != nil {
