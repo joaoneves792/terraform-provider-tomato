@@ -13,7 +13,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
-var lock = &sync.Mutex{}
+var DNSEntryLock = &sync.Mutex{}
 
 func resourceDNSEntry() *schema.Resource {
 	return &schema.Resource{
@@ -42,8 +42,8 @@ func resourceDNSEntryCreate(ctx context.Context, d *schema.ResourceData, m inter
 	// Warning or errors can be collected in a slice type
 	var diags diag.Diagnostics
 
-	lock.Lock()
-	defer lock.Unlock()
+	DNSEntryLock.Lock()
+	defer DNSEntryLock.Unlock()
 
 	n, err := c.getNVRAM()
 	if err != nil {
@@ -93,7 +93,7 @@ func resourceDNSEntryRead(ctx context.Context, d *schema.ResourceData, m interfa
 
 	dnsmasq_custom := n["dnsmasq_custom"]
 
-	entry, name, record := findEntry(name, dnsmasq_custom)
+	entry, name, record := findDNSEntry(name, dnsmasq_custom)
 	if err := d.Set("name", name); err != nil {
 		return diag.FromErr(err)
 	}
@@ -107,7 +107,7 @@ func resourceDNSEntryRead(ctx context.Context, d *schema.ResourceData, m interfa
 	return diags
 }
 
-func findEntry(name, dnsmasq_config string) (string, string, string) {
+func findDNSEntry(name, dnsmasq_config string) (string, string, string) {
 	re := regexp.MustCompile(`(?m)address=/([a-zA-Z-\.]+)/([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)$`)
 
 	matches := re.FindAllStringSubmatch(dnsmasq_config, -1)
@@ -123,8 +123,8 @@ func resourceDNSEntryUpdate(ctx context.Context, d *schema.ResourceData, m inter
 
 	c := m.(*Client)
 
-	lock.Lock()
-	defer lock.Unlock()
+	DNSEntryLock.Lock()
+	defer DNSEntryLock.Unlock()
 
 	oname := d.Get("name").(string)
 	orecord := d.Get("record").(string)
@@ -136,7 +136,7 @@ func resourceDNSEntryUpdate(ctx context.Context, d *schema.ResourceData, m inter
 
 	dnsmasq_custom := n["dnsmasq_custom"]
 
-	eentry, ename, erecord := findEntry(oname, dnsmasq_custom)
+	eentry, ename, erecord := findDNSEntry(oname, dnsmasq_custom)
 
 	//Nothing has changed
 	if oname == ename && orecord == erecord {
@@ -169,8 +169,8 @@ func resourceDNSEntryDelete(ctx context.Context, d *schema.ResourceData, m inter
 	id := d.Id()
 	c := m.(*Client)
 
-	lock.Lock()
-	defer lock.Unlock()
+	DNSEntryLock.Lock()
+	defer DNSEntryLock.Unlock()
 
 	n, err := c.getNVRAM()
 	if err != nil {
@@ -179,7 +179,7 @@ func resourceDNSEntryDelete(ctx context.Context, d *schema.ResourceData, m inter
 
 	dnsmasq_custom := n["dnsmasq_custom"]
 
-	entry, _, _ := findEntry(id, dnsmasq_custom)
+	entry, _, _ := findDNSEntry(id, dnsmasq_custom)
 
 	if len(entry) == 0 {
 		return diags
