@@ -32,6 +32,6 @@ This provider exposes the following datasources and resources (see examples in .
 
 EOT
 
-for file in $(find . -name '*.md'); do 
+for file in $(find ./docs/ -name '*.md'); do 
   cat $file | tail --lines +8 >> ./README.md
 done

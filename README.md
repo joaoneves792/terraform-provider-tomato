@@ -28,29 +28,6 @@ provider "tomato" {
 This provider exposes the following datasources and resources (see examples in ./examples/main.tf):
 
 
-In your terraform code include the provider as:
-```
-terraform {
-  required_providers {
-    tomato = {
-      version = ">=0.0.3"
-      source  = "warpenguin.dev/tomato/tomato"
-    }
-  }
-}
-
-provider "tomato" {
-  url = "https://10.0.0.1"
-  #Provide username and password with TOMATO_USERNAME and TOMATO_PASSWORD env variables, or alternatively set them here
-  username = "xxxxx" 
-  password = "xxxxx"
-}
-
-```
-
-This provider exposes the following datasources and resources (see examples in ./examples/main.tf):
-
-
 
 # tomato Provider
 
