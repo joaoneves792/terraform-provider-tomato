@@ -57,6 +57,7 @@ func Provider() *schema.Provider {
 		ResourcesMap: map[string]*schema.Resource{
 			"tomato_dns_entry": resourceDNSEntry(),
 			"tomato_static_ip": resourceStaticIp(),
+			"tomato_generic":   resourceGeneric(),
 		},
 		DataSourcesMap: map[string]*schema.Resource{
 			"tomato_nvram": dataSourceNVRAM(),
