@@ -5,6 +5,6 @@ provider "warpenguin.dev/tomato/tomato" {
   version     = "0.0.3"
   constraints = ">= 0.0.1"
   hashes = [
-    "h1:uH0iRvxuh84PGoDz6QIqcOfiVIwgMvFbkE3qw+ob1aM=",
+    "h1:h241kuTex8tm/6o9RU0gFo7gyHZqzdoIzd3gs1GysJU=",
   ]
 }
