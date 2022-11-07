@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"regexp"
 	"time"
 	//  "github.com/hashicorp/terraform-plugin-log/tflog"
 )
@@ -15,7 +16,7 @@ import (
 type Client struct {
 	HostURL    string
 	HTTPClient *http.Client
-	Token      string
+	HttpID     string
 	Auth       AuthStruct
 }
 
@@ -23,13 +24,6 @@ type Client struct {
 type AuthStruct struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
-}
-
-// AuthResponse -
-type AuthResponse struct {
-	UserID   int    `json:"user_id`
-	Username string `json:"username`
-	Token    string `json:"token"`
 }
 
 // NewClient -
@@ -56,7 +50,36 @@ func NewClient(host, username, password *string) (*Client, error) {
 		Password: *password,
 	}
 
-	return &c, nil
+	return &c, c.authenticate()
+
+}
+
+func (c *Client) authenticate() error {
+	req, err := http.NewRequest("GET", fmt.Sprintf("%s/about.asp", c.HostURL), nil)
+	if err != nil {
+		return err
+	}
+
+	b, err := c.doRequest(req)
+	if err != nil {
+		return err
+	}
+
+	response := string(b)
+
+	re := regexp.MustCompile(`(?m)nvram\s=\s{[^}]+}`)
+	nvram := re.FindAllString(response, -1)
+	if len(nvram) > 0 {
+		re = regexp.MustCompile(`(?m)'http_id':\s'([^']+)`)
+		http_id_matches := re.FindAllStringSubmatch(nvram[0], -1)
+		if len(http_id_matches[0][1]) > 0 {
+			c.HttpID = http_id_matches[0][1]
+		}
+
+	}
+
+	return nil
+
 }
 
 func (c *Client) doRequest(req *http.Request) ([]byte, error) {
@@ -85,7 +108,11 @@ func (c *Client) applyChange(service, nvram_entries string) (string, error) {
 		return "", fmt.Errorf("define username and password")
 	}
 
-	rb := fmt.Sprintf("_ajax=1&_service=%s&%s&_http_id=TID944e75807cf4c9c3", service, nvram_entries)
+	if c.HttpID == "" {
+		return "", fmt.Errorf("Missing http_id, authentication failed")
+	}
+
+	rb := fmt.Sprintf("_ajax=1&_service=%s&%s&_http_id=%s", service, nvram_entries, c.HttpID)
 
 	req, err := http.NewRequest("POST", fmt.Sprintf("%s/tomato.cgi?", c.HostURL), bytes.NewBuffer([]byte(rb)))
 	if err != nil {
@@ -106,8 +133,11 @@ func (c *Client) getNVRAM() (map[string]string, error) {
 	if c.Auth.Username == "" || c.Auth.Password == "" {
 		return nil, fmt.Errorf("define username and password")
 	}
+	if c.HttpID == "" {
+		return nil, fmt.Errorf("Missing http_id, authentication failed")
+	}
 
-	req, err := http.NewRequest("GET", fmt.Sprintf("%s/cfg/tomato.cfg?_http_id=TID944e75807cf4c9c3", c.HostURL), nil)
+	req, err := http.NewRequest("GET", fmt.Sprintf("%s/cfg/tomato.cfg?_http_id=%s", c.HostURL, c.HttpID), nil)
 	if err != nil {
 		return nil, err
 	}

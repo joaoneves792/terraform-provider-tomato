@@ -233,7 +233,7 @@ func resourceStaticIpUpdate(ctx context.Context, d *schema.ResourceData, m inter
 		return diag.FromErr(err)
 	}
 
-  d.SetId(mac)
+	d.SetId(mac)
 	return resourceStaticIpRead(ctx, d, m)
 }
 
